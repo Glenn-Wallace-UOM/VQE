@@ -4,6 +4,7 @@ import scipy as sp
 import qulacs as qlcs
 import matplotlib.pyplot as plt
 import qulacsvis as qlcsvis
+import time as t
 from time import time
 
 from helper import *
@@ -25,7 +26,7 @@ class VQE():
         self.hamiltonian = self.gen_hamiltonian(U, V, -t) # Generate hamiltonian
         self.layers = layers # Set layers
         # Set circuit parameter count
-        self.param_count = (3*self.N*self.L - self.N - self.L)*self.layers + self.Np
+        self.param_count = (3*self.N*self.L - self.N - self.L + 3)*self.layers + self.Np
         #self.param_count = 9 + 6
         self.display_ansatz = display_ansatz
         # Init iteration counter
@@ -108,10 +109,10 @@ class VQE():
         # Define ansatz circuit
         for l in range(0, self.layers):
             # Add adjacent iSWAP gates to ansatz
-            for site in range(0, self.L-1):
+            for site in range(0, self.L):
                 for colour in range(0, self.n_qubits, self.L):
                     curr_qubit = site+colour
-                    next_qubit = curr_qubit + 1
+                    next_qubit = curr_qubit + 1 if curr_qubit + 1 < self.n_qubits else 0
                     circuit.add_gate(create_n_iswap_gate(
                             [curr_qubit, next_qubit], theta_list[param_countdown]
                         ))
@@ -137,7 +138,24 @@ class VQE():
         state = qlcs.QuantumState(self.n_qubits) # Define all 0 state
         ansatz = self.gen_ansatz(theta_list)
         ansatz.update_quantum_state(state)
-        return self.hamiltonian.get_expectation_value(state)
+
+        total_number_operators = []
+        for i in range(0, 3):
+            n_i = 0
+            for s in range(0, 9, 3):
+                n_i += of.FermionOperator(
+                    ((i+s, 1),(i+s, 0))
+                )
+            total_number_operators.append(n_i)
+        total_number_operator = of.transforms.jordan_wigner(sum(total_number_operators))
+
+        qlcs_total_number_operator = qlcs.observable.create_observable_from_openfermion_text(
+            str(total_number_operator)
+        )
+
+        particle_number = qlcs_total_number_operator.get_expectation_value(state)
+
+        return self.hamiltonian.get_expectation_value(state) + (self.N - particle_number)**2
 
     def run(self):
         # print("Running VQE...")
@@ -167,15 +185,15 @@ if __name__ == "__main__":
     shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
     #shape = list((1,0,0,0) for i in range(4))
     vqe = VQE(shape=shape, U=5, V=10, t=1, layers=3, maxiter=100000, display_ansatz=True)
-    # results = vqe.run()
-    # run_time = time() - run_time
-    # print("Run time:", run_time, "seconds")
+    results = vqe.run()
+    run_time = time() - run_time
+    print("Run time:", run_time, "seconds")
 
-    # best_result = vqe.cost(results[len(results)-1][0])
-    # best_params = results[len(results)-1][0]
+    best_result = vqe.cost(results[len(results)-1][0])
+    best_params = results[len(results)-1][0]
 
-    # np.save("NSTATEL3.npy", best_params)
-    best = np.load("NSTATEL3.npy")
+    np.save("COSTFUNCL3.npy", best_params)
+    best = np.load("COSTFUNCL3.npy")
 
     print(best)
     print(vqe.cost(best))

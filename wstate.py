@@ -25,7 +25,7 @@ class VQE():
         self.hamiltonian = self.gen_hamiltonian(U, V, -t) # Generate hamiltonian
         self.layers = layers # Set layers
         # Set circuit parameter count
-        self.param_count = (3*self.N*self.L - self.N - self.L)*self.layers + self.Np
+        self.param_count = (3*self.N*self.L - self.N - self.L)*self.layers + self.Np - self.N
         #self.param_count = 9 + 6
         self.display_ansatz = display_ansatz
         # Init iteration counter
@@ -100,11 +100,24 @@ class VQE():
         param_countdown = 0
         # Define initialiser circuit
         circuit = qlcs.QuantumCircuit(self.n_qubits)
-        for i in range(0, self.n_qubits):
-            if self.shape[i] == 1:
-                circuit.add_X_gate(i)
-                circuit.add_RZ_gate(i, theta_list[param_countdown])
-                param_countdown += 1
+        for i in range(0, self.n_qubits, self.L):
+            circuit.add_RY_gate(i, 1.910633)
+        for i in range(0, self.n_qubits, self.L):
+            h_gate = qlcs.gate.H(i+1)
+            h_gate = qlcs.gate.to_matrix_gate(h_gate)
+            h_gate.add_control_qubit(i, 1)
+            circuit.add_gate(h_gate)
+        for i in range(0, self.n_qubits, self.L):
+            circuit.add_CNOT_gate(i+1, i+2)
+        for i in range(0, self.n_qubits, self.L):
+            circuit.add_CNOT_gate(i, i+1)
+        for i in range(0, self.n_qubits, self.L):
+            circuit.add_X_gate(i)
+        # for i in range(0, self.n_qubits):
+        #     if self.shape[i] == 1:
+        #         circuit.add_X_gate(i)
+        #         circuit.add_RZ_gate(i, theta_list[param_countdown])
+        #         param_countdown += 1
         # Define ansatz circuit
         for l in range(0, self.layers):
             # Add adjacent iSWAP gates to ansatz
@@ -167,15 +180,15 @@ if __name__ == "__main__":
     shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
     #shape = list((1,0,0,0) for i in range(4))
     vqe = VQE(shape=shape, U=5, V=10, t=1, layers=3, maxiter=100000, display_ansatz=True)
-    # results = vqe.run()
-    # run_time = time() - run_time
-    # print("Run time:", run_time, "seconds")
+    results = vqe.run()
+    run_time = time() - run_time
+    print("Run time:", run_time, "seconds")
 
-    # best_result = vqe.cost(results[len(results)-1][0])
-    # best_params = results[len(results)-1][0]
+    best_result = vqe.cost(results[len(results)-1][0])
+    best_params = results[len(results)-1][0]
 
-    # np.save("NSTATEL3.npy", best_params)
-    best = np.load("NSTATEL3.npy")
+    np.save("WSTATEL3.npy", best_params)
+    best = np.load("WSTATEL3.npy")
 
     print(best)
     print(vqe.cost(best))
