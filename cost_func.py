@@ -26,8 +26,8 @@ class VQE():
         self.hamiltonian = self.gen_hamiltonian(U, V, -t) # Generate hamiltonian
         self.layers = layers # Set layers
         # Set circuit parameter count
-        self.param_count = (3*self.N*self.L - self.N - self.L + 3)*self.layers + self.Np
-        #self.param_count = 9 + 6
+        #self.param_count = (3*self.N*self.L - self.N - self.L + 3)*self.layers + self.Np
+        self.param_count = self.L + 44*self.layers
         self.display_ansatz = display_ansatz
         # Init iteration counter
         self.iteration_counter = 0
@@ -130,7 +130,7 @@ class VQE():
                 # print("Ansatz circuit:")
                 qlcsvis.circuit_drawer(circuit, "mpl")
                 self.display_ansatz = False
-        # print(self.param_count-param_countdown)
+        #print(self.param_count-param_countdown)
         return circuit
 
     #  Cost function
@@ -139,23 +139,35 @@ class VQE():
         ansatz = self.gen_ansatz(theta_list)
         ansatz.update_quantum_state(state)
 
+        # Create total number operators for each spin
         total_number_operators = []
-        for i in range(0, 3):
+        for i in range(0, 9, 3):
             n_i = 0
-            for s in range(0, 9, 3):
+            for s in range(0, 3):
                 n_i += of.FermionOperator(
                     ((i+s, 1),(i+s, 0))
                 )
             total_number_operators.append(n_i)
-        total_number_operator = of.transforms.jordan_wigner(sum(total_number_operators))
+        # Jordan-Wigner Transform TNOs
+        total_number_operators_jw = []
+        for n in total_number_operators:
+            total_number_operators_jw.append(
+                of.transforms.jordan_wigner(n)
+            )
+        # Convert JW TNOs to Qulacs
+        total_number_operators_qlcs = []
+        for n in total_number_operators_jw:
+            total_number_operators_qlcs.append(
+                qlcs.observable.create_observable_from_openfermion_text(
+                    str(n)
+                )
+            )
+        # Calculate 'cost' for each TNO independently
+        number_cost_functions = []
+        for n in total_number_operators_qlcs:
+            number_cost_functions.append((1 - n.get_expectation_value(state))**2)
 
-        qlcs_total_number_operator = qlcs.observable.create_observable_from_openfermion_text(
-            str(total_number_operator)
-        )
-
-        particle_number = qlcs_total_number_operator.get_expectation_value(state)
-
-        return self.hamiltonian.get_expectation_value(state) + (self.N - particle_number)**2
+        return self.hamiltonian.get_expectation_value(state) + sum(number_cost_functions)
 
     def run(self):
         # print("Running VQE...")
@@ -182,9 +194,9 @@ class VQE():
 
 if __name__ == "__main__":
     run_time = time()
-    shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
-    #shape = list((1,0,0,0) for i in range(4))
-    vqe = VQE(shape=shape, U=5, V=10, t=1, layers=3, maxiter=100000, display_ansatz=True)
+    #shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
+    shape = list((1,0,0,0) for i in range(4))
+    vqe = VQE(shape=shape, U=5, V=0, t=1, layers=5, maxiter=100000, display_ansatz=True)
     results = vqe.run()
     run_time = time() - run_time
     print("Run time:", run_time, "seconds")
@@ -192,8 +204,8 @@ if __name__ == "__main__":
     best_result = vqe.cost(results[len(results)-1][0])
     best_params = results[len(results)-1][0]
 
-    np.save("COSTFUNCL3.npy", best_params)
-    best = np.load("COSTFUNCL3.npy")
+    np.save("COSTFUNCL5.npy", best_params)
+    best = np.load("COSTFUNCL5.npy")
 
     print(best)
     print(vqe.cost(best))

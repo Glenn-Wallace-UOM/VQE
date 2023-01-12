@@ -100,19 +100,45 @@ class VQE():
         param_countdown = 0
         # Define initialiser circuit
         circuit = qlcs.QuantumCircuit(self.n_qubits)
-        for i in range(0, self.n_qubits, self.L):
-            circuit.add_RY_gate(i, 1.910633)
-        for i in range(0, self.n_qubits, self.L):
-            h_gate = qlcs.gate.H(i+1)
-            h_gate = qlcs.gate.to_matrix_gate(h_gate)
-            h_gate.add_control_qubit(i, 1)
-            circuit.add_gate(h_gate)
-        for i in range(0, self.n_qubits, self.L):
-            circuit.add_CNOT_gate(i+1, i+2)
-        for i in range(0, self.n_qubits, self.L):
-            circuit.add_CNOT_gate(i, i+1)
-        for i in range(0, self.n_qubits, self.L):
-            circuit.add_X_gate(i)
+        if self.N == 3:
+            for i in range(0, self.n_qubits, self.L):
+                circuit.add_RY_gate(i, 1.910633)
+            for i in range(0, self.n_qubits, self.L):
+                h_gate = qlcs.gate.H(i+1)
+                h_gate = qlcs.gate.to_matrix_gate(h_gate)
+                h_gate.add_control_qubit(i, 1)
+                circuit.add_gate(h_gate)
+            for i in range(0, self.n_qubits, self.L):
+                circuit.add_CNOT_gate(i+1, i+2)
+            for i in range(0, self.n_qubits, self.L):
+                circuit.add_CNOT_gate(i, i+1)
+            for i in range(0, self.n_qubits, self.L):
+                circuit.add_X_gate(i)
+        elif self.N == 4:
+            for i in range(0, self.n_qubits, self.L):
+                circuit.add_H_gate(i+2)
+                circuit.add_H_gate(i+3)
+            for i in range(0, self.n_qubits, self.L):
+                X_gate = qlcs.gate.X(i+1)
+                X_mat_gate = qlcs.gate.to_matrix_gate(X_gate)
+                X_mat_gate.add_control_qubit(i+2, 0)
+                X_mat_gate.add_control_qubit(i+3, 0)
+                circuit.add_gate(X_mat_gate)
+            for i in range(0, self.n_qubits, self.L):
+                X_gate = qlcs.gate.X(i)
+                X_mat_gate = qlcs.gate.to_matrix_gate(X_gate)
+                X_mat_gate.add_control_qubit(i+2, 1)
+                X_mat_gate.add_control_qubit(i+3, 1)
+                circuit.add_gate(X_mat_gate)
+            for i in range(0, self.n_qubits, self.L):
+                X_gate = qlcs.gate.X(i+2)
+                X_mat_gate = qlcs.gate.to_matrix_gate(X_gate)
+                X_mat_gate.add_control_qubit(i, 1)
+                circuit.add_gate(X_mat_gate)
+                X_gate = qlcs.gate.X(i+3)
+                X_mat_gate = qlcs.gate.to_matrix_gate(X_gate)
+                X_mat_gate.add_control_qubit(i, 1)
+                circuit.add_gate(X_mat_gate)
         # for i in range(0, self.n_qubits):
         #     if self.shape[i] == 1:
         #         circuit.add_X_gate(i)
@@ -152,6 +178,12 @@ class VQE():
         ansatz.update_quantum_state(state)
         return self.hamiltonian.get_expectation_value(state)
 
+    def param_to_state(self, theta_list):
+        state = qlcs.QuantumState(self.n_qubits)
+        ansatz = self.gen_ansatz(theta_list)
+        ansatz.update_quantum_state(state)
+        return state
+
     def run(self):
         # print("Running VQE...")
         self.cost_history = []
@@ -176,19 +208,56 @@ class VQE():
         return self.cost_history
 
 if __name__ == "__main__":
-    run_time = time()
-    shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
-    #shape = list((1,0,0,0) for i in range(4))
-    vqe = VQE(shape=shape, U=5, V=10, t=1, layers=3, maxiter=100000, display_ansatz=True)
-    results = vqe.run()
-    run_time = time() - run_time
-    print("Run time:", run_time, "seconds")
+    # run_time = time()
+    # #shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
+    shape = list((1,0,0,0) for i in range(4))
+    # vqe = VQE(shape=shape, U=5, V=0, t=1, layers=11, maxiter=100000, display_ansatz=False)
+    # results = vqe.run()
+    # run_time = time() - run_time
+    # print("Run time:", run_time, "seconds")
 
-    best_result = vqe.cost(results[len(results)-1][0])
-    best_params = results[len(results)-1][0]
+    # best_result = vqe.cost(results[len(results)-1][0])
+    # best_params = results[len(results)-1][0]
 
-    np.save("WSTATEL3.npy", best_params)
-    best = np.load("WSTATEL3.npy")
+    # np.save("WSTATEN4L11.npy", best_params)
+    # best = np.load("WSTATEN4L11.npy")
 
-    print(best)
-    print(vqe.cost(best))
+    # print(best)
+    # print(vqe.cost(best))
+
+    # shape = list((1,0,0,0) for i in range(4))
+    # for i in range(1, 11):
+    #     vqe = VQE(shape=shape, U=5, V=0, t=1, layers=i, maxiter=100000, display_ansatz=False)
+
+    #     approx = vqe.param_to_state(np.load("./parameters/WSTATEN4L{}.npy".format(i))).get_vector()
+    #     exact = np.load("ground_state.npy")
+    #     print(np.abs(np.vdot(approx, exact))**2)
+
+    exact_state_vec = np.load("ground_state.npy")
+    exact_state = qlcs.QuantumState(16)
+    exact_state.load(exact_state_vec)
+    exact_reduced_density_mat = qlcs.state.partial_trace(exact_state, [0, 1, 2, 3, 4, 5, 6, 7])
+
+    eigenvals = np.linalg.eigvals(exact_reduced_density_mat.get_matrix())
+    exact_entanglement_entropy = 0
+    for eig in eigenvals:
+        if eig != 0+0j:
+            ylogy = eig*np.log2(eig)
+            exact_entanglement_entropy -= ylogy
+    entanglement_entropy = np.abs(exact_entanglement_entropy)
+    print(np.abs(entanglement_entropy))
+    print(" ")
+    # print(qskt.quantum_info.entropy(qskt.quantum_info.partial_trace(qskt.quantum_info.Statevector(exact_state_vec), [0, 1, 2, 3, 4, 5, 6, 7])))
+
+    for i in range(1, 11):
+        vqe = VQE(shape=shape, U=5, V=0, t=1, layers=i, maxiter=100000, display_ansatz=False)
+        approx_state = vqe.param_to_state(np.load("./parameters/WSTATEN4L{}.npy".format(i)))
+        approx_reduced_density_mat = qlcs.state.partial_trace(approx_state, [0, 1, 2, 3, 4, 5, 6, 7])
+        approx_eigenvals = np.linalg.eigvals(approx_reduced_density_mat.get_matrix())
+        approx_entanglement_entropy = 0
+        for eig in approx_eigenvals:
+            if eig != 0+0j:
+                ylogy = eig*np.log2(eig)
+                approx_entanglement_entropy -= ylogy
+        approx_entanglement_entropy = np.abs(approx_entanglement_entropy)
+        print(approx_entanglement_entropy)

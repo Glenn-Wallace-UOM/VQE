@@ -4,7 +4,6 @@ import scipy as sp
 import qulacs as qlcs
 import matplotlib.pyplot as plt
 import qulacsvis as qlcsvis
-import qiskit as qskt
 from time import time
 
 from helper import *
@@ -26,7 +25,7 @@ class VQE():
         self.hamiltonian = self.gen_hamiltonian(U, V, -t) # Generate hamiltonian
         self.layers = layers # Set layers
         # Set circuit parameter count
-        self.param_count = (3*self.N*self.L - self.N - self.L)*self.layers + self.Np
+        self.param_count = (3*self.N*self.L - self.N - self.L)*self.layers + self.Np + (self.L-1)*self.N*self.layers
         #self.param_count = 9 + 6
         self.display_ansatz = display_ansatz
         # Init iteration counter
@@ -113,10 +112,10 @@ class VQE():
                 for colour in range(0, self.n_qubits, self.L):
                     curr_qubit = site+colour
                     next_qubit = curr_qubit + 1
-                    circuit.add_gate(create_n_iswap_gate(
-                            [curr_qubit, next_qubit], theta_list[param_countdown]
+                    circuit.add_gate(create_n_iswap_extra_gate(
+                            [curr_qubit, next_qubit], theta_list[param_countdown], theta_list[param_countdown+1]
                         ))
-                    param_countdown += 1
+                    param_countdown += 2
             for i in range(0, self.n_qubits-self.N):
                 # circuit.add_gate(create_crz_gate(i, i+self.N, theta_list[param_countdown]))
                 circuit.add_gate(create_qiskit_crz_gate(i, i+self.N, theta_list[param_countdown]))
@@ -130,7 +129,7 @@ class VQE():
                 # print("Ansatz circuit:")
                 qlcsvis.circuit_drawer(circuit, "mpl")
                 self.display_ansatz = False
-        # print(self.param_count-param_countdown)
+        #print(self.param_count-param_countdown)
         return circuit
 
     #  Cost function
@@ -139,12 +138,6 @@ class VQE():
         ansatz = self.gen_ansatz(theta_list)
         ansatz.update_quantum_state(state)
         return self.hamiltonian.get_expectation_value(state)
-
-    def param_to_state(self, theta_list):
-        state = qlcs.QuantumState(self.n_qubits)
-        ansatz = self.gen_ansatz(theta_list)
-        ansatz.update_quantum_state(state)
-        return state
 
     def run(self):
         # print("Running VQE...")
@@ -170,55 +163,19 @@ class VQE():
         return self.cost_history
 
 if __name__ == "__main__":
-    # run_time = time()
-    # # #shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
-    shape = list((1,0,0,0) for i in range(4))
-    # vqe = VQE(shape=shape, U=5, V=0, t=1, layers=1, maxiter=100000, display_ansatz=False)
-    # results = vqe.run()
-    # run_time = time() - run_time
-    # print("Run time:", run_time, "seconds")
+    run_time = time()
+    shape = ((1, 0, 0),(1, 0, 0),(1, 0, 0))
+    #shape = list((1,0,0,0) for i in range(4))
+    vqe = VQE(shape=shape, U=5, V=10, t=1, layers=3, maxiter=100000, display_ansatz=True)
+    results = vqe.run()
+    run_time = time() - run_time
+    print("Run time:", run_time, "seconds")
 
-    # best_result = vqe.cost(results[len(results)-1][0])
-    # best_params = results[len(results)-1][0]
+    best_result = vqe.cost(results[len(results)-1][0])
+    best_params = results[len(results)-1][0]
 
-    # np.save("N4U5V0L11.npy", best_params)
-    # best = np.load("N4U5V0L11.npy")
+    np.save("N3U5V10L3.npy", best_params)
+    best = np.load("N3U5V10L3.npy")
 
-    # print(best)
-    # print(vqe.cost(best))
-
-    # for i in range(1, 11):
-    #     vqe = VQE(shape=shape, U=5, V=0, t=1, layers=i, maxiter=100000, display_ansatz=False)
-
-    #     approx = vqe.param_to_state(np.load("./parameters/N4U5V0L{}.npy".format(i))).get_vector()
-    #     exact = np.load("ground_state.npy")
-    #     print(np.abs(np.vdot(approx, exact))**2)
-
-    exact_state_vec = np.load("ground_state.npy")
-    exact_state = qlcs.QuantumState(16)
-    exact_state.load(exact_state_vec)
-    exact_reduced_density_mat = qlcs.state.partial_trace(exact_state, [0, 1, 2, 3, 4, 5, 6, 7])
-
-    eigenvals = np.linalg.eigvals(exact_reduced_density_mat.get_matrix())
-    exact_entanglement_entropy = 0
-    for eig in eigenvals:
-        if eig != 0+0j:
-            ylogy = eig*np.log2(eig)
-            exact_entanglement_entropy -= ylogy
-    entanglement_entropy = np.abs(exact_entanglement_entropy)
-    print(np.abs(entanglement_entropy))
-    print(" ")
-    # print(qskt.quantum_info.entropy(qskt.quantum_info.partial_trace(qskt.quantum_info.Statevector(exact_state_vec), [0, 1, 2, 3, 4, 5, 6, 7])))
-
-    for i in range(1, 11):
-        vqe = VQE(shape=shape, U=5, V=0, t=1, layers=i, maxiter=100000, display_ansatz=False)
-        approx_state = vqe.param_to_state(np.load("./parameters/N4U5V0L{}.npy".format(i)))
-        approx_reduced_density_mat = qlcs.state.partial_trace(approx_state, [0, 1, 2, 3, 4, 5, 6, 7])
-        approx_eigenvals = np.linalg.eigvals(approx_reduced_density_mat.get_matrix())
-        approx_entanglement_entropy = 0
-        for eig in approx_eigenvals:
-            if eig != 0+0j:
-                ylogy = eig*np.log2(eig)
-                approx_entanglement_entropy -= ylogy
-        approx_entanglement_entropy = np.abs(approx_entanglement_entropy)
-        print(approx_entanglement_entropy)
+    print(best)
+    print(vqe.cost(best))
