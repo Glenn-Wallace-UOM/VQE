@@ -1,6 +1,4 @@
-import openfermion as of
 import numpy as np
-import scipy as sp
 import qulacs as qlcs
 
 def create_cx_gate(target, control):
@@ -128,7 +126,3 @@ def create_qiskit_rz_gate(target, angle):
     rz_gate = qlcs.gate.DenseMatrix(
         target, rz_gate_matrix)
     return rz_gate
-
-def state_to_entropy(state):
-    density_matrix = np.outer(state, state.conj())
-    
